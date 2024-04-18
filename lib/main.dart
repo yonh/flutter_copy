@@ -39,7 +39,8 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  bool _isServerRunning = false; // Add this line to track the server status
+
   Uint8List? _imageData;
   String _ipAddress = '192.168.1.38'; // Add this line to store the IP address
   String _port = '1234';
@@ -56,12 +57,24 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _startServer() async {
-    final int portNumber = int.tryParse(_port) ?? 1234;
-    _server = await HttpServer.bind(InternetAddress.anyIPv4, portNumber);
-    print('Server listening on port ${_server!.port}');
+    if (_isServerRunning) {
+      await _server?.close();
 
-    await for (HttpRequest request in _server!) {
-      handleRequest(request);
+      setState(() {
+        _isServerRunning = false;
+      });
+    } else {
+      final int portNumber = int.tryParse(_port) ?? 1234;
+      _server = await HttpServer.bind(InternetAddress.anyIPv4, portNumber);
+      print('Server listening on port ${_server!.port}');
+
+      setState(() {
+        _isServerRunning = true;
+      });
+
+      await for (HttpRequest request in _server!) {
+        handleRequest(request);
+      }
     }
   }
 
@@ -308,9 +321,17 @@ class _MyHomePageState extends State<MyHomePage> {
                 keyboardType: TextInputType.number,
                 controller: TextEditingController(text: _port),
               ),
+              // 添加一个间隙
+              SizedBox(height: 10),
               ElevatedButton(
                 onPressed: _startServer,
-                child: Text('Start Server'),
+                child: Text(_isServerRunning ? 'Stop Server' : 'Start Server'),
+                style: ButtonStyle(
+                  backgroundColor: MaterialStateProperty.all(
+                    _isServerRunning ? Colors.red : Colors.green,
+                  ),
+                  foregroundColor: MaterialStateProperty.all(Colors.white),
+                ),
               ),
               Expanded(
                 child: Padding(
