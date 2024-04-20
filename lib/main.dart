@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart'; // Add this line
 import 'package:super_clipboard/super_clipboard.dart';
 
 import 'clipboard/clipboard_listener.dart';
@@ -40,7 +41,7 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   bool _isServerRunning = false; // Add this line to track the server status
-
+  String _inputText = '';
   Uint8List? _imageData;
   String _ipAddress = '192.168.1.38'; // Add this line to store the IP address
   String _port = '1234';
@@ -230,7 +231,63 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
+  // void _selfSendText(String text) {
+  //   final now = DateTime.now();
+  //   final formatter = DateFormat('yyyy-MM-dd HH:mm:ss');
+  //   final formattedDate = formatter.format(now);
+  //
+  //   setState(() {
+  //     _outputList.add(Text('自己 [$formattedDate]\n$text'));
+  //   });
+  //
+  //   _scrollToBottom();
+  // }
+
+  void _selfSendText(Widget content) {
+    final now = DateTime.now();
+    final formatter = DateFormat('yyyy-MM-dd HH:mm:ss');
+    final formattedDate = formatter.format(now);
+
+    setState(() {
+      _outputList.add(Padding(
+        padding: const EdgeInsets.all(0.1),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('自己 [$formattedDate]'),
+            content,
+          ],
+        ),
+      ));
+    });
+
+    _scrollToBottom();
+  }
+
   Future<void> _copyClipboardContent() async {
+    if (_inputText.isNotEmpty) {
+      // 将输入框的文本数据发送给 localhost:1234/text
+      final client = HttpClient();
+      final request =
+          await client.postUrl(Uri.parse('http://$_ipAddress:$_port/text'));
+      request.headers.contentType = ContentType.text;
+      request.write(_inputText);
+      final response = await request.close();
+      if (response.statusCode != HttpStatus.ok) {
+        print('HTTP request failed, status: ${response.statusCode}.');
+      }
+      await response.drain();
+      client.close();
+
+      _selfSendText(Text(_inputText));
+
+      // 清空输入框的内容
+      setState(() {
+        _inputText = '';
+      });
+      return;
+    }
+
     final clipboard = SystemClipboard.instance;
     if (clipboard == null) {
       return; // Clipboard API is not supported on this platform.
@@ -268,9 +325,16 @@ class _MyHomePageState extends State<MyHomePage> {
         }
         await response.drain();
         client.close();
+
+        _selfSendText(Image.memory(bytes));
       });
     } else if (reader.canProvide(Formats.plainText)) {
       final text = await reader.readValue(Formats.plainText);
+
+      if (text == null || text.trim().isEmpty) {
+        return;
+      }
+
       // 将读取到的文本数据发送给 localhost:1234/text
       final client = HttpClient();
       final request =
@@ -283,6 +347,8 @@ class _MyHomePageState extends State<MyHomePage> {
       }
       await response.drain();
       client.close();
+
+      _selfSendText(Text(text));
     }
   }
 
@@ -349,13 +415,39 @@ class _MyHomePageState extends State<MyHomePage> {
                   ),
                 ),
               ),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: TextField(
+                      onChanged: (value) {
+                        _inputText = value;
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'Enter your data',
+                      ),
+                      controller: TextEditingController.fromValue(
+                        TextEditingValue(
+                          text: _inputText,
+                          selection: TextSelection.collapsed(
+                              offset: _inputText.length),
+                        ),
+                      ),
+                    ),
+                  ),
+                  FloatingActionButton(
+                    onPressed: _copyClipboardContent,
+                    tooltip: 'Send',
+                    child: const Icon(Icons.send),
+                  ),
+                ],
+              )
             ],
           )),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _copyClipboardContent,
-        tooltip: 'Copy',
-        child: const Icon(Icons.send),
-      ),
+      // floatingActionButton: FloatingActionButton(
+      //   onPressed: _copyClipboardContent,
+      //   tooltip: 'Send',
+      //   child: const Icon(Icons.send),
+      // ),
     );
   }
 }
