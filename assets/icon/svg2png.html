@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>svg2png</title>
+    <script>
+        document.addEventListener('DOMContentLoaded', (ev) => {
+          document
+            .querySelector('#file_select_button')
+            .addEventListener('change', (ev) => {
+              // キャンセルの場合は何もしない
+              if (!ev.target.files.length) {
+                return;
+              }
+              // 選んだファイル
+              const f = ev.target.files[0];
+              // 保存名
+              const pngName = f.name + '.png';
+              // 画像読み込み用 Image要素
+              const imgElement = new Image();
+              // 読み込み後処理
+              imgElement.onload = (ev) => {
+                const img = ev.target;
+                // 用済みのオブジェクトURLを解放
+                URL.revokeObjectURL(img.src);
+                // canvas生成
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                // canvasにimgを描画
+                canvas.getContext('2d').drawImage(img, 0, 0);
+                // PNGフォーマットでObjectURLを取得
+                canvas.toBlob((blob) => {
+                  const pngurl = URL.createObjectURL(blob);
+                  // ダウンロード用にa要素を作成して、押す
+                  // （直接のダウンロードは行えないので、ダウンロード用リンクを作成しそれを踏む）
+                  const aElement = document.createElement('a');
+                  aElement.href = pngurl;
+                  aElement.download = pngName;
+                  aElement.dispatchEvent(new MouseEvent('click'));
+                  URL.revokeObjectURL(pngurl);
+                }, 'image/png');
+              };
+              // ファイルをオブジェクトURLにして読み込み開始
+              imgElement.src = URL.createObjectURL(f);
+            });
+        });
+    </script>
+</head>
+<body>
+<input type="file" id="file_select_button" accept="image/svg+xml" />
+</body>
+</html>
